@@ -1,6 +1,7 @@
 import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
@@ -39,12 +40,36 @@ const registerUser = asyncHandler(async (req, res) => {
   if (existedUser) {
     throw new ApiError(403, "User with email or username already exists");
   }
+  const avatarLocalPath = req.files?.avatar[0]?.path;
+  //const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+  let coverImageLocalPath;
+  if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+      coverImageLocalPath = req.files.coverImage[0].path
+  }
+  
+
+  if (!avatarLocalPath) {
+      throw new ApiError(400, "Avatar file is required")
+  }
+
+  const avatar = await uploadOnCloudinary(avatarLocalPath)
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+  if (!avatar) {
+      throw new ApiError(400, "Avatar file is required")
+  }
+ 
+
 
   const user = await User.create({
     fullName,
     email,
     password,
     userName,
+    avatar: avatar.url,
+    coverImage: coverImage?.url || "",
+    
   });
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -219,7 +244,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
       {
           $set: {
               fullName,
-              email: email
+              email,
           }
       },
       {new: true}
@@ -228,7 +253,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
 
   return res
   .status(200)
-  .json(new ApiResponse(200, user, "Account details updated successfully"))
+  .json(new ApiResponse(200,user, "Account details updated successfully"))
 });
 
 
@@ -240,13 +265,15 @@ const updateUserAvatar = asyncHandler(async(req, res) => {
   }
 
 
-  const avatar = await uploadOnCloudinary(avatarLocalPath)
+
 
   if (!avatar.url) {
       throw new ApiError(400, "Error while uploading on avatar")
       
-  }
-
+  
+ }
+  const avatar = await uploadOnCloudinary(avatarLocalPath)
+ 
   const user = await User.findByIdAndUpdate(
       req.user?._id,
       {
@@ -297,6 +324,16 @@ const updateUserCoverImage = asyncHandler(async(req, res) => {
       new ApiResponse(200, user, "Cover image updated successfully")
   )
 })
+const getCurrentUser = asyncHandler(async(req, res) => {
+  return res
+  .status(200)
+  .json(new ApiResponse(
+      200,
+      req.user,
+      "User fetched successfully"
+  ))
+})
+
 
 
 export { registerUser, loginUser, logOut, refreshAccessToken ,changeCurrentPassword,   getCurrentUser,
