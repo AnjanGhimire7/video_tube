@@ -2,8 +2,8 @@ import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { Video } from "../models/video.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import mongoose, { isValidObjectId } from "mongoose";
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
 
 const publishVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
@@ -39,15 +39,12 @@ const publishVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "failed to publish the video!!!");
   }
 
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(200, {
-        ...video._docs,
-        videoFile: videoFile?.url,
-        thumbnail: thumbnail?.url,
-      })
-    );
+  return res.status(200).json(
+    new ApiResponse(200, {
+      videoFile: videoFile?.url, //showing only videoFile and thumbnial in response
+      thumbnail: thumbnail?.url,
+    })
+  );
 });
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -121,4 +118,122 @@ const getAllVideos = asyncHandler(async (req, res) => {
       new ApiResponse(200, videoAggregate, "successfully fectched the video!!!")
     );
 });
-export { getAllVideos, publishVideo };
+const getVideoById = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "cannot get videoId!!!");
+  }
+  const video = await Video.findById(videoId).populate("owner");
+
+  if (!video) {
+    throw new ApiError(401, "failed to get the video!!!");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { video }, "successfully getting the video!!!"));
+});
+
+const updateVideo = asyncHandler(async (req, res) => {
+  const { title, description } = req.body;
+  const { videoId } = req.params;
+
+  const updateTumbnailLocalPath = req.file.path;
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "invalid videoID!!!");
+  }
+
+  if (!updateTumbnailLocalPath) {
+    throw new ApiError(400, "tumbnailpath is missing!!!");
+  }
+  const video = await Video.findById(videoId);
+
+  if (!req.validUser?._id.equals(video.owner?._id)) {
+    throw new ApiError(401, "not the video owner!!!");
+  }
+  if (title) {
+    video.title = title;
+  }
+  if (description) {
+    video.description = description;
+  }
+
+  if (updateTumbnailLocalPath) {
+    const newthumbnail = await uploadOnCloudinary(updateTumbnailLocalPath);
+    if (!newthumbnail?.url) {
+      throw new ApiError(401, "failed to upload thumbnail!!!");
+    }
+    await deleteOnCloudinary(video.thumbnail);
+    video.thumbnail = newthumbnail;
+  }
+
+  await video.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { video }, "successfully updating video!!!"));
+});
+
+const deleteVideo = asyncHandler(async (req, res) => {
+  const { videoId } = req.params
+  if (!isValidObjectId(videoId)) {
+      throw new ApiError(400, "id not found");
+  }
+
+  const video = await Video.findById(videoId)
+  if (!video) {
+      throw new ApiError(400, "something wrong happened while fetching video");
+  }
+
+  //* check you are the owner of this video or not
+  if (!req.validUser._id.equals(video.owner._id)) {
+      throw new ApiError(400, "you are not the owner of this video");
+  }
+  
+
+if (video) {
+  await Video.findByIdAndDelete(videoId)
+await deleteOnCloudinary(video.videoFile);
+await deleteOnCloudinary(video.thumbnail);
+  await Video.findByIdAndDelete(videoId)
+}
+      
+  
+  
+    res
+    .status(200)
+    .json(new ApiResponse(200, {  }, "video delete successfully"));
+    }
+  
+
+  
+
+)
+  
+
+
+const togglePublishStatus = asyncHandler(async(req,res)=>{
+  const {videoId} = req.params;
+
+  if(!isValidObjectId(videoId)){
+      throw new ApiError(400,"video id is missing")
+  }
+
+  const video = await Video.findById(videoId);
+  //* check you are the owner of this video or not
+  if (!req.validUser._id.equals(video.owner._id)) {
+    throw new ApiError(400, "you are not the owner of this video");
+}
+  video.isPublished = !video.isPublished;
+  await video.save()
+  
+  return res.json(new ApiResponse(200,video,"updated"))
+})
+
+
+export {
+  getAllVideos,
+  publishVideo,
+  getVideoById,
+  updateVideo,
+  deleteVideo,
+  togglePublishStatus,
+};

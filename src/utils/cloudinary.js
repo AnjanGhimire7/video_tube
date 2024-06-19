@@ -24,26 +24,24 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
-
 const deleteOnCloudinary = async (localpath) => {
   try {
-    const publicId = localpath
-      .split("/")
-      .pop()
-      .replace(/\.(jpg|png|gif|jpeg|mp4|avi|mov|mkv)$/, "");
+   
+    const videoLinkSplit = localpath.split("/")
+    const public_id = videoLinkSplit[videoLinkSplit.length - 1].split(".")[0]
 
-    console.log(publicId);
-    if (!publicId) {
+    console.log(public_id);
+    if (!public_id) {
       throw new ApiError(400, "local path of deleted file missing");
     }
-
-    const result = await cloudinary.uploader.destroy(publicId, {
-      resource_type: "image",
-    });
+const response= await cloudinary.uploader.destroy(public_id,{
+  resource_type:"raw"
+})
     
-  } catch (error) {
-    throw new ApiError(400, "cannot delete!!!");
+console.log(response)
   }
-};
-
+  catch{
+throw new ApiError(400,"failed!!!")
+  }
+}
 export { uploadOnCloudinary, deleteOnCloudinary };
