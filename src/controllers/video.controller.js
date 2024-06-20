@@ -3,7 +3,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { Video } from "../models/video.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import mongoose, { isValidObjectId } from "mongoose";
-import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteOnCloudinary } from "../utils/cloudinary.js";
 
 const publishVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
@@ -29,8 +30,16 @@ const publishVideo = asyncHandler(async (req, res) => {
   const video = await Video.create({
     title,
     description,
-    videoFile: videoFile?.url,
-    thumbnail: thumbnail?.url,
+    videoFile: {
+      url: videoFile?.url,
+      public_id: videoFile?.public_id,
+    },
+
+    thumbnail: {
+      url: thumbnail?.url,
+      public_id: thumbnail?.public_id,
+    },
+
     duration: videoFile?.duration,
     owner: req.validUser?._id,
   });
@@ -47,48 +56,70 @@ const publishVideo = asyncHandler(async (req, res) => {
   );
 });
 
+// get all videos
 const getAllVideos = asyncHandler(async (req, res) => {
-  const {
-    page = 1,
-    limit = 2,
-    query = "",
-    sortBy,
-    sortType,
-    userId,
-  } = req.query;
+  const { page = 1, limit = 10, query="", sortBy, sortType, userId } = req.query;
+
   const pageLimit = parseInt(limit);
   const pageSkip = (page - 1) * pageLimit;
   const sortStage = {};
   //sortBy= views
   sortStage[sortBy] = sortType === "asc" ? 1 : -1;
 
-  const matchCondition = {
-    $or: [
-      { title: { $regex: query, $options: "i" } },
-      { description: { $regex: query, $options: "i" } },
-    ],
-  };
+  const pipeline = [];
 
-  if (userId) {
-    matchCondition.owner = ObjectId(userId);
+  // for using Full Text based search you need to create a search index in mongoDB atlas
+  // you can include field mapppings in search index eg.title, description, as well
+  // Field mappings specify which fields within your documents should be indexed for text search.
+  // this helps in seraching only in title, description providing faster search results
+  // here the name of search index is 'search-videos'
+
+  if (query) {
+    pipeline.push({
+      $search: {
+        index: "search-videos",
+        text: {
+          query: query,
+          text: [title, description],
+        },
+      },
+    });
   }
 
-  const videoAggregate = Video.aggregate([
-    {
-      $match: matchCondition,
-    },
+  console.log("pipeline 1", pipeline);
 
+  if (userId) {
+    if (!isValidObjectId(userId)) throw new ApiError(400, "Invalid id");
+
+    // fetch videos only that are set isPublished as true
+
+    pipeline.push({
+      $match: {
+        $or: [{ owner: ObjectId(userId) }, { isPublished: true }],
+      },
+    });
+  }
+
+  if (sortStage) {
+    pipeline.push({
+      $sort: sortStage,
+    });
+  } else {
+    pipeline.push({ $sort: { createdAt: -1 } });
+  }
+
+  pipeline.push(
     {
       $lookup: {
         from: "users",
         localField: "owner",
         foreignField: "_id",
-        as: "owenerResult",
+        as: "ownerDetails",
         pipeline: [
           {
             $project: {
               userName: 1,
-              avatar: 1,
+              "avatar.url": 1,
             },
           },
         ],
@@ -97,37 +128,46 @@ const getAllVideos = asyncHandler(async (req, res) => {
     {
       $addFields: {
         owner_details: {
-          $arrayElemAt: ["$ownerResult", 0],
+          $arrayElemAt: ["$ownerDetails", 0],
         },
       },
-    },
-    {
-      $sort: sortStage,
-    },
-    {
-      $limit: pageLimit,
-    },
-    { $skip: pageSkip },
-  ]);
-  if (!videoAggregate) {
-    throw new ApiError(402, "failed to get all the video!!!");
-  }
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(200, videoAggregate, "successfully fectched the video!!!")
-    );
+    }
+  );
+
+  const videoAggregate = await Video.aggregate(pipeline);
+
+  const options = {
+    pageLimit,
+    pageSkip,
+  };
+
+  console.log("videoAggregate", videoAggregate);
+
+  const video = await Video.paginate(videoAggregate,options)
+
+  return res.status(200, video, "Videos fetched succesffuly");
 });
+
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "cannot get videoId!!!");
   }
-  const video = await Video.findById(videoId).populate("owner");
+  const video = await Video.findById(videoId).populate({
+    path: "owner",
+    select: "userName",
+  });
 
   if (!video) {
     throw new ApiError(401, "failed to get the video!!!");
   }
+  //increment the views by 1 if video fetched successfully!!!
+  await Video.findByIdAndUpdate(videoId, {
+    $inc: {
+      views: 1,
+    },
+  });
+
   return res
     .status(200)
     .json(new ApiResponse(200, { video }, "successfully getting the video!!!"));
@@ -162,7 +202,8 @@ const updateVideo = asyncHandler(async (req, res) => {
     if (!newthumbnail?.url) {
       throw new ApiError(401, "failed to upload thumbnail!!!");
     }
-    await deleteOnCloudinary(video.thumbnail);
+    const thumbnailToDelete = video.thumbnail.public_id;
+    await deleteOnCloudinary(thumbnailToDelete);
     video.thumbnail = newthumbnail;
   }
 
@@ -173,61 +214,57 @@ const updateVideo = asyncHandler(async (req, res) => {
 });
 
 const deleteVideo = asyncHandler(async (req, res) => {
-  const { videoId } = req.params
-  if (!isValidObjectId(videoId)) {
-      throw new ApiError(400, "id not found");
+  const { videoId } = req.params;
+  if (!videoId) {
+    throw new ApiError(400, "id not found");
   }
 
-  const video = await Video.findById(videoId)
+  const video = await Video.findById(videoId);
   if (!video) {
-      throw new ApiError(400, "something wrong happened while fetching video");
+    throw new ApiError(400, "something wrong happened while fetching video");
   }
 
   //* check you are the owner of this video or not
   if (!req.validUser._id.equals(video.owner._id)) {
-      throw new ApiError(400, "you are not the owner of this video");
+    throw new ApiError(400, "you are not the owner of this video");
   }
-  
 
-if (video) {
-  await Video.findByIdAndDelete(videoId)
-await deleteOnCloudinary(video.videoFile);
-await deleteOnCloudinary(video.thumbnail);
-  await Video.findByIdAndDelete(videoId)
-}
-      
-  
-  
-    res
+  const deleteVideo = await deleteOnCloudinary(video.thumbnail.public_id);
+
+  const deleteThumbnail = await deleteOnCloudinary(
+    video.videoFile.public_id,
+    "video"
+  );
+  await Video.findByIdAndDelete(videoId);
+
+  res
     .status(200)
-    .json(new ApiResponse(200, {  }, "video delete successfully"));
-    }
-  
+    .json(
+      new ApiResponse(
+        200,
+        { deleteVideo, deleteThumbnail },
+        "video delete successfully"
+      )
+    );
+});
 
-  
+const togglePublishStatus = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
 
-)
-  
-
-
-const togglePublishStatus = asyncHandler(async(req,res)=>{
-  const {videoId} = req.params;
-
-  if(!isValidObjectId(videoId)){
-      throw new ApiError(400,"video id is missing")
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "video id is missing");
   }
 
   const video = await Video.findById(videoId);
   //* check you are the owner of this video or not
   if (!req.validUser._id.equals(video.owner._id)) {
     throw new ApiError(400, "you are not the owner of this video");
-}
+  }
   video.isPublished = !video.isPublished;
-  await video.save()
-  
-  return res.json(new ApiResponse(200,video,"updated"))
-})
+  await video.save();
 
+  return res.json(new ApiResponse(200, video, "updated"));
+});
 
 export {
   getAllVideos,

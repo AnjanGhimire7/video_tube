@@ -34,6 +34,6 @@ router
   .patch(upload.single("thumbnail"), updateVideo)
   .delete(deleteVideo);
 
-  router.route("/publish-status/:videoId").patch(verifyJWT, togglePublishStatus);
+router.route("/publish-status/:videoId").patch(verifyJWT, togglePublishStatus);
 
 export default router;

@@ -1,7 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 import { ApiError } from "./ApiError.js";
-
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -24,24 +23,19 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
-const deleteOnCloudinary = async (localpath) => {
+const deleteOnCloudinary = async (public_id, resource_type = "image") => {
   try {
-   
-    const videoLinkSplit = localpath.split("/")
-    const public_id = videoLinkSplit[videoLinkSplit.length - 1].split(".")[0]
+    if (!public_id) return null;
 
-    console.log(public_id);
-    if (!public_id) {
-      throw new ApiError(400, "local path of deleted file missing");
-    }
-const response= await cloudinary.uploader.destroy(public_id,{
-  resource_type:"raw"
-})
-    
-console.log(response)
+    // delete from cloudinary
+    const result = await cloudinary.uploader.destroy(public_id, {
+      resource_type: `${resource_type}`,
+    });
+
+    console.log(result);
+  } catch (error) {
+    console.log("delete on cloudinary failed", error);
   }
-  catch{
-throw new ApiError(400,"failed!!!")
-  }
-}
+};
+
 export { uploadOnCloudinary, deleteOnCloudinary };
