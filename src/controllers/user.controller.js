@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
-
+import mongoose from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -235,6 +235,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Password changed successfully"));
 });
+
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, email } = req.body;
 
@@ -243,11 +244,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findByIdAndUpdate(
-    req.user?._id,
+    req.validUser?._id,
     {
       $set: {
         fullName,
-        email,
+        email: email,
       },
     },
     { new: true }
@@ -348,9 +349,9 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
-  const { username } = req.params;
+  const { userName } = req.params;
 
-  if (!username?.trim()) {
+  if (!userName?.trim()) {
     throw new ApiError(400, "username is missing");
   }
 
@@ -396,7 +397,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     {
       $project: {
         fullName: 1,
-        username: 1,
+        userName: 1,
         subscribersCount: 1,
         channelsSubscribedToCount: 1,
         isSubscribed: 1,
@@ -442,7 +443,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                 {
                   $project: {
                     fullName: 1,
-                    username: 1,
+                    userName: 1,
                     avatar: 1,
                   },
                 },

@@ -50,15 +50,21 @@ const publishVideo = asyncHandler(async (req, res) => {
 
   return res.status(200).json(
     new ApiResponse(200, {
-      videoFile: videoFile?.url, //showing only videoFile and thumbnial in response
-      thumbnail: thumbnail?.url,
+    video
     })
   );
 });
 
 // get all videos
 const getAllVideos = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, query="", sortBy, sortType, userId } = req.query;
+  const {
+    page = 1,
+    limit = 10,
+    query = "",
+    sortBy,
+    sortType,
+    userId,
+  } = req.query;
 
   const pageLimit = parseInt(limit);
   const pageSkip = (page - 1) * pageLimit;
@@ -85,8 +91,6 @@ const getAllVideos = asyncHandler(async (req, res) => {
       },
     });
   }
-
-  console.log("pipeline 1", pipeline);
 
   if (userId) {
     if (!isValidObjectId(userId)) throw new ApiError(400, "Invalid id");
@@ -143,7 +147,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   console.log("videoAggregate", videoAggregate);
 
-  const video = await Video.paginate(videoAggregate,options)
+  const video = await Video.paginate(videoAggregate, options);
 
   return res.status(200, video, "Videos fetched succesffuly");
 });
