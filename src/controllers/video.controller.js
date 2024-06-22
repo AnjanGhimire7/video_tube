@@ -5,7 +5,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import mongoose, { isValidObjectId } from "mongoose";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { deleteOnCloudinary } from "../utils/cloudinary.js";
-
+import { User } from "../models/user.model.js";
 const publishVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
   if (!(title && description)) {
@@ -50,7 +50,7 @@ const publishVideo = asyncHandler(async (req, res) => {
 
   return res.status(200).json(
     new ApiResponse(200, {
-    video
+      video,
     })
   );
 });
@@ -157,14 +157,17 @@ const getVideoById = asyncHandler(async (req, res) => {
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "cannot get videoId!!!");
   }
-  const video = await Video.findById(videoId).populate({
-    path: "owner",
-    select: "userName",
-  });
+  const video = await Video.findById(videoId).populate("owner");
 
   if (!video) {
     throw new ApiError(401, "failed to get the video!!!");
   }
+  //adding video to watch history
+  await User.findByIdAndUpdate(req.validUser._id, {
+    $set: {
+      watchHistory: videoId,
+    },
+  });
   //increment the views by 1 if video fetched successfully!!!
   await Video.findByIdAndUpdate(videoId, {
     $inc: {
