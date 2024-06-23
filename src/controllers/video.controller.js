@@ -1,8 +1,8 @@
-import { asyncHandler } from "../utils/asynchandler.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { Video } from "../models/video.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import mongoose, { isValidObjectId } from "mongoose";
+import  { Types,isValidObjectId } from "mongoose";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { deleteOnCloudinary } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
@@ -99,7 +99,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     pipeline.push({
       $match: {
-        $or: [{ owner: ObjectId(userId) }, { isPublished: true }],
+        $or: [{ owner: new Types.objectId(userId) }, { isPublished: true }],
       },
     });
   }
@@ -147,9 +147,17 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   console.log("videoAggregate", videoAggregate);
 
-  const video = await Video.paginate(videoAggregate, options);
-
-  return res.status(200, video, "Videos fetched succesffuly");
+  Video.paginate(videoAggregate, options)
+    .then(function (result) {
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(200, { result }, "Video Comment fetched successfully")
+        );
+    })
+    .catch(function (error) {
+      throw error;
+    });
 });
 
 const getVideoById = asyncHandler(async (req, res) => {
