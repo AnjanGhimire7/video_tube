@@ -84,14 +84,13 @@ const updateComment = asyncHandler(async (req, res) => {
   if (!content?.trim()) {
     throw new ApiError(400, "Comment text is required");
   }
-  const comment = await Comment.findByIdAndUpdate(
-    commentId,
-    {
-      $set: { content },
-    },
-    { new: true }
-  );
-
+  const comment = await Comment.findById(commentId)
+  if (content) {
+    comment.content = content;
+  }
+  await comment.save({
+    validateBeforeSave: false,
+  });
   res
     .status(200)
     .json(new ApiResponse(200, comment, "Comment is updated successfully"));
@@ -103,6 +102,7 @@ const deleteComment = asyncHandler(async (req, res) => {
   if (!isValidObjectId(commentId)) {
     throw new ApiError(400, "invalid comment Id!!!");
   }
+
   const deleteComment = await Comment.findByIdAndDelete(commentId);
 
   if (!deleteComment) {
