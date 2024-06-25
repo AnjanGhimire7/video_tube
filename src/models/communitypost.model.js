@@ -9,10 +9,7 @@ const communitySchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "User",
   },
-  expireAt: {
-    type: Date,
-    default: Date.now,
-    index: { expires: "1d" },
-  },
 });
+
+
 export const Community = mongoose.model("Community", communitySchema);

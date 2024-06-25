@@ -1,10 +1,11 @@
 import { Types, isValidObjectId } from "mongoose";
-import { Comment } from "../models/comment.model.js";
+import { VideoComment } from "../models/videoComment.model.js";
+import { CommunityPostComment } from "../models/communityPostComment.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const addComment = asyncHandler(async (req, res) => {
+const addVideoComment = asyncHandler(async (req, res) => {
   const { content } = req.body;
   const { videoId } = req.params;
   if (!content) {
@@ -13,7 +14,8 @@ const addComment = asyncHandler(async (req, res) => {
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "invalid video id!!!");
   }
-  const comment = await Comment.create({
+
+  const comment = await VideoComment.create({
     content,
     video: videoId,
     owner: req?.validUser?._id,
@@ -40,7 +42,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid videoId!");
   }
 
-  const aggregate = Comment.aggregate([
+  const aggregate = VideoComment.aggregate([
     {
       $match: {
         video: new Types.ObjectId(videoId),
@@ -60,7 +62,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
     page: parseInt(page),
     limit: pageLimit,
   };
-  Comment.paginate(aggregate, options)
+  VideoComment.paginate(aggregate, options)
     .then(function (allcomments) {
       return res
         .status(200)
@@ -73,7 +75,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
     });
 });
 
-const updateComment = asyncHandler(async (req, res) => {
+const updateVideoComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
 
   if (!isValidObjectId(commentId)) {
@@ -84,7 +86,7 @@ const updateComment = asyncHandler(async (req, res) => {
   if (!content?.trim()) {
     throw new ApiError(400, "Comment text is required");
   }
-  const comment = await Comment.findById(commentId)
+  const comment = await VideoComment.findById(commentId);
   if (content) {
     comment.content = content;
   }
@@ -96,14 +98,14 @@ const updateComment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, comment, "Comment is updated successfully"));
 });
 
-const deleteComment = asyncHandler(async (req, res) => {
+const deleteVideoComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
 
   if (!isValidObjectId(commentId)) {
     throw new ApiError(400, "invalid comment Id!!!");
   }
 
-  const deleteComment = await Comment.findByIdAndDelete(commentId);
+  const deleteComment = await VideoComment.findByIdAndDelete(commentId);
 
   if (!deleteComment) {
     throw new ApiError(400, "failed to delete the comment!!!");
@@ -112,5 +114,99 @@ const deleteComment = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "successfully deleted the comment!!!"));
 });
+// comment for communityPost
 
-export { getVideoComments, addComment, updateComment, deleteComment };
+const addCommunityPostComment = asyncHandler(async (req, res) => {
+  const { content } = req.body;
+  const { postId } = req.params;
+  if (!content) {
+    throw new ApiError(400, "content is required!!!");
+  }
+  if (!isValidObjectId(postId)) {
+    throw new ApiError(400, "invalid Postid!!!");
+  }
+
+  const comment = await CommunityPostComment.create({
+    content,
+    communityPost: postId,
+    owner: req?.validUser?._id,
+  });
+
+  if (!comment) {
+    throw new ApiError(400, "failed to comment on communityPost!!!");
+  }
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        comment,
+        "successfully commented on the communityPost!!! "
+      )
+    );
+});
+const updateCommunityPostComment = asyncHandler(async (req, res) => {
+  const { newContent } = req.body;
+  const { commentId } = req.params;
+  if (!isValidObjectId(commentId)) {
+    throw new ApiError(400, "invalid comment id!!!");
+  }
+  if (!newContent) {
+    throw new ApiError(400, "content is required");
+  }
+  const comment = await CommunityPostComment.findById(commentId);
+
+  if (!req?.validUser?._id.equals(comment.owner?._id)) {
+    throw new ApiError(400, "you are not the owner!!!");
+  }
+  if (newContent) {
+    comment.content = newContent;
+  }
+  await comment.save({
+    validateBeforeSave: false,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        comment,
+        "successfully updating the comment on communityPost!!!"
+      )
+    );
+});
+
+const deleteCommunityPostComment = asyncHandler(async (req, res) => {
+  const { commentId } = req.params;
+  if (!isValidObjectId(commentId)) {
+    throw new ApiError(400, "Invalid commentId!!!");
+  }
+  const comment = await CommunityPostComment.findById(commentId);
+  if (!req?.validUser?._id.equals(comment.owner?._id)) {
+    throw new ApiError(400, "you are not the owner!!!");
+  }
+
+  const deleteComment = await CommunityPostComment.findByIdAndDelete(commentId);
+  if (!deleteComment) {
+    throw new ApiError(400, "failed to delete the comment!!!");
+  }
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        {},
+        "successfully delete the comment from communityPost!!!"
+      )
+    );
+});
+export {
+  getVideoComments,
+  addVideoComment,
+  updateVideoComment,
+  deleteVideoComment,
+  addCommunityPostComment,
+  updateCommunityPostComment,
+  deleteCommunityPostComment,
+};
