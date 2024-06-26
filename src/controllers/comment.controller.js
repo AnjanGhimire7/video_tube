@@ -1,9 +1,11 @@
 import { Types, isValidObjectId } from "mongoose";
 import { VideoComment } from "../models/videoComment.model.js";
 import { CommunityPostComment } from "../models/communityPostComment.model.js";
+import { Community } from "../models/communitypost.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Video } from "../models/video.model.js";
 
 const addVideoComment = asyncHandler(async (req, res) => {
   const { content } = req.body;
@@ -14,7 +16,17 @@ const addVideoComment = asyncHandler(async (req, res) => {
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "invalid video id!!!");
   }
-
+  const video = await Video.findById(videoId);
+  if (!video) {
+    throw new ApiError(404, "video not found!!!");
+  }
+  if (
+    !video.owner ||
+    !req?.validUser ||
+    !req?.validUser?._id.equals(video.owner._id)
+  ) {
+    throw new ApiError(403, "not allowded to comment on video!!!");
+  }
   const comment = await VideoComment.create({
     content,
     video: videoId,
@@ -119,28 +131,45 @@ const deleteVideoComment = asyncHandler(async (req, res) => {
 const addCommunityPostComment = asyncHandler(async (req, res) => {
   const { content } = req.body;
   const { postId } = req.params;
-  if (!content) {
-    throw new ApiError(400, "content is required!!!");
-  }
   if (!isValidObjectId(postId)) {
     throw new ApiError(400, "invalid Postid!!!");
   }
+  if (!content) {
+    throw new ApiError(400, "content is required!!!");
+  }
+  // Find the community post by postId
+  const communityPost = await Community.findById(postId);
 
-  const comment = await CommunityPostComment.create({
+  // Check if the community post exists
+  if (!communityPost) {
+    throw new ApiError(404, "Community post not found!!!");
+  }
+
+  // Check if the current user is allowed to comment
+  if (
+    !req.validUser ||
+    !communityPost.owner ||
+    !req.validUser._id.equals(communityPost.owner._id)
+  ) {
+    throw new ApiError(403, "Not allowed to comment on this post!!!");
+  }
+
+  const createComment = new CommunityPostComment({
     content,
     communityPost: postId,
-    owner: req?.validUser?._id,
+    owner: req.validUser?._id,
   });
 
-  if (!comment) {
+  if (!createComment) {
     throw new ApiError(400, "failed to comment on communityPost!!!");
   }
+  await createComment.save();
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
-        comment,
+        createComment,
         "successfully commented on the communityPost!!! "
       )
     );

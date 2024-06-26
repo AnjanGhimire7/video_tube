@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js";
-import {Types} from "mongoose";
+import { Types } from "mongoose";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
@@ -407,7 +407,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       },
     },
   ]);
-console.log(channel);
+  console.log(channel);
   if (!channel?.length) {
     throw new ApiError(404, "channel does not exists");
   }
@@ -461,7 +461,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
       },
     },
   ]);
-console.log(user);
+  console.log(user);
   return res
     .status(200)
     .json(

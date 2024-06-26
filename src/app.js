@@ -23,6 +23,7 @@ import subscriptionRouter from "./routes/subscription.route.js";
 import videoCommentRouter from "./routes/videoComment.route.js";
 import communityRouter from "./routes/community.route.js";
 import communityPostCommentRouter from "./routes/communityPostComment.route.js";
+import likeRouter from "./routes/like.route.js";
 //route declaration
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/videos", videoRouter);
@@ -30,4 +31,6 @@ app.use("/api/v1/subscriptions", subscriptionRouter);
 app.use("/api/v1/videoComments", videoCommentRouter);
 app.use("/api/v1/communityPost", communityRouter);
 app.use("/api/v1/communityPostComments", communityPostCommentRouter);
+app.use("/api/v1/likes", likeRouter);
+
 export { app };
