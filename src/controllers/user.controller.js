@@ -87,7 +87,7 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "User registered Successfully"));
 });
 
-const loginUser = asyncHandler(async (req, res, next) => {
+const loginUser = asyncHandler(async (req, res) => {
   const { email, userName, password } = req.body;
 
   if (!userName && !email) {
@@ -136,7 +136,7 @@ const loginUser = asyncHandler(async (req, res, next) => {
         "User logged In Successfully"
       )
     );
-  next();
+  
 });
 
 const logOut = asyncHandler(async (req, res) => {
