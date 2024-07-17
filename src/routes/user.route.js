@@ -11,6 +11,8 @@ import {
   updateAccountDetails,
   getUserChannelProfile,
   getWatchHistory,
+  resetPassword,
+  forgetPassword,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -39,6 +41,8 @@ router.route("/refresh-token").post(refreshAccessToken);
 router.route("/change-password").put(verifyJWT, changeCurrentPassword);
 router.route("/current-user").get(verifyJWT, getCurrentUser);
 router.route("/update-account").put(verifyJWT, updateAccountDetails);
+router.route("/forget-password").post(verifyJWT, forgetPassword);
+router.route("/reset-password").patch(verifyJWT, resetPassword);
 
 router
   .route("/avatar")
